@@ -1,0 +1,107 @@
+Page -2
+
+pipe
+
+
+You’ve seen the high-level popen function, but now let’s move on to look at the lower-level pipe function.
+This function provides a means of passing data between two programs, without the overhead of
+invoking a shell to interpret the requested command. It also gives you more control over the reading and
+writing of data.
+
+The basic test program of read write in same process is given as pipe_read_write.c
+
+How it Works:-
+
+The program creates a pipe using the two file descriptors in the array file_pipes[]. It then writes data
+into the pipe using the file descriptor file_pipes[1] and reads it back from file_pipes[0]. Notice
+that the pipe has some internal buffering that stores the data in between the calls to write and read.
+You should be aware that the effect of trying to write using file_descriptor[0], or read using
+file_descriptor[1], is undefined, so the behavior could be very strange and may change without
+warning. On the authors’ systems, such calls fail with a –1 return value, which at least ensures that it’s
+easy to catch this mistake.
+
+Pipe across fork:-
+
+ When a program creates a new process using the fork call, file descriptors that
+were previously open remain open. By creating a pipe in the original process and then forking to create
+a new process, you can pass data from one process to the other down the pipe.
+
+sample program- pipes_across_fork.c
+
+Pipe fork with exec :-
+sample program - pipe_and_exec.c
+
+Most programs that read data from the standard input do so differently than the examples you’ve seen
+so far. They don’t usually know how much data they have to read, so they will normally loop — reading
+data, processing it, and then reading more data until there’s no more data to read.
+
+A read call will normally block; that is, it will cause the process to wait until data becomes available. If
+the other end of the pipe has been closed, then no process has the pipe open for writing, and the read
+blocks. Because this isn’t very helpful, a read on a pipe that isn’t open for writing returns zero rather
+than blocking. This allows the reading process to detect the pipe equivalent of end of file and act appropriately.
+Notice that this isn’t the same as reading an invalid file descriptor, which read considers an error and 
+indicates by returning –1.
+
+Pipe used as Standard Input and Output :-
+
+Now that you know how to make a read on an empty pipe fail, you can look at a much cleaner method
+of connecting two processes with a pipe. You arrange for one of the pipe file descriptors to have a known
+value, usually the standard input, 0, or the standard output, 1. This is slightly more complex to set up in
+the parent, but it allows the child program to be much simpler.
+The one big advantage is that you can invoke standard programs, ones that don’t expect a file descriptor
+as a parameter. In order to do this, you need to use the dup function, which you met in Chapter 3. There
+are two closely related versions of dup that have the following prototypes:
+
+#include <unistd.h>
+int dup(int file_descriptor);
+int dup2(int file_descriptor_one, int file_descriptor_two);
+
+The purpose of the dup call is to open a new file descriptor, a little like the open call. The difference is
+that the new file descriptor created by dup refers to the same file (or pipe) as an existing file descriptor.
+In the case of dup, the new file descriptor is always the lowest number available, and in the case of dup2
+it’s the same as, or the first available descriptor greater than, the parameter file_descriptor_two.
+
+You can get the same effect as dup and dup2 by using the more general fcntl call, with a command
+F_DUPFD. Having said that, the dup call is easier to use because it’s tailored specifically to the needs
+of creating duplicate file descriptors. It’s also very commonly used, so you’ll find it more frequently in
+existing programs than fcntl and F_DUPFD.
+
+So how does dup help in passing data between processes? The trick is knowing that the standard input file
+descriptor is always 0 and that dup always returns a new file descriptor using the lowest available number.
+By first closing file descriptor 0 and then calling dup, the new file descriptor will have the number 0. Because
+the new descriptor is a duplicate of an existing one, standard input will have been changed to access the file
+or pipe whose file descriptor you passed to dup. You will have created two file descriptors that refer to the
+same file or pipe, and one of them will be the standard input.
+
+sample program- pipes_and_dup.c
+
+How it works:-
+
+As before, the program creates a pipe and then forks, creating a child process. At this point, both the parent
+and child have file descriptors that access the pipe, one each for reading and writing, so there are four open
+file descriptors in total.
+Let’s look at the child process first. The child closes its standard input with close(0) and then calls
+dup(file_pipes[0]). This duplicates the file descriptor associated with the read end of the pipe as
+file descriptor 0, the standard input. The child then closes the original file descriptor for reading from the
+pipe, file_pipes[0]. Because the child will never write to the pipe, it also closes the write file descriptor
+associated with the pipe, file_pipes[1]. It now has a single file descriptor associated with the pipe:
+file descriptor 0, its standard input.
+The child can then use exec to invoke any program that reads standard input. In this case, you use the
+od command. The od command will wait for data to be available to it as if it were waiting for input from
+a user terminal. In fact, without some special code to explicitly detect the difference, it won’t know that
+the input is from a pipe rather than a terminal.
+The parent starts by closing the read end of the pipe file_pipes[0], because it will never read the
+pipe. It then writes data to the pipe. When all the data has been written, the parent closes the write end
+of the pipe and exits. Because there are now no file descriptors open that could write to the pipe, the od
+program will be able to read the three bytes written to the pipe, but subsequent reads will then return 0
+bytes, indicating an end of file. When the read returns 0, the od program exits. This is analogous to running
+the od command on a terminal, then pressing Ctrl+D to send end of file to the od command.
+
+
+
+
+
+
+
+
+
