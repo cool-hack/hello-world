@@ -35,6 +35,28 @@ The pclose call normally returns the exit code of the process whose file stream 
 process has already executed a wait statement before calling pclose, the exit status will be lost because
 the invoked process has finished and pclose will return –1, with errno set to ECHILD.
 
+Sample programs are available in same directory as pipe_read.c pipe_write.c etc.
+
+
+How popen is implemented- 
+
+The popen call runs the program you requested by first invoking the shell, sh, passing it the command
+string as an argument. This has two effects, one good and the other not so good.
+
+In Linux (as in all UNIX-like systems), all parameter expansion is done by the shell, so invoking the shell to
+parse the command string before the program is invoked allows any shell expansion, such as determining
+what files *.c actually refers to, to be done before the program starts. This is often quite useful, and it
+allows complex shell commands to be started with popen. Other process creation functions, such as execl,
+can be much more complex to invoke, because the calling process has to perform its own shell expansion.
+
+The unfortunate effect of using the shell is that for every call to popen, a shell is invoked along with the
+requested program. Each call to popen then results in two extra processes being started, which makes
+the popen function a little expensive in terms of system resources and invocation of the target command
+is slower than it might otherwise have been
+
+
+
+
 
 
 
