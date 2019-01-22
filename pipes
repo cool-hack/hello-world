@@ -1,0 +1,43 @@
+pipe - We use the term pipe to mean connecting a data flow from one process to another. Generally you
+attach, or pipe, the output of one process to the input of another.
+
+
+
+popen - 
+
+The popen function allows a program to invoke another program as a new process and either pass data
+to it or receive data from it. 
+The command string is the name of the program to run, together with any
+parameters. open_mode must be either “r” or “w”.
+
+#include <stdio.h>
+FILE *popen(const char *command, const char *open_mode);
+int pclose(FILE *stream_to_close);
+
+If the open_mode is “r”, output from the invoked program is made available to the invoking program
+and can be read from the file stream FILE * returned by popen, using the usual stdio library functions
+for reading (for example, fread). However, if open_mode is “w”, the program can send data to the
+invoked command with calls to fwrite. The invoked program can then read the data on its standard
+input. Normally, the program being invoked won’t be aware that it’s reading data from another process;
+it simply reads its standard input stream and acts on it.
+
+A call to popen must specify either “r” or “w”; no other option is supported in a standard implementation
+of popen. This means that you can’t invoke another program and both read from and write to it. On
+failure, popen returns a null pointer. If you want bidirectional communication using pipes, the normal
+solution is to use two pipes, one for data flow in each direction.
+
+pclose- 
+
+When the process started with popen has finished, you can close the file stream associated with it using
+pclose. The pclose call will return only when the process started with popen finishes. If it’s still running
+when pclose is called, the pclose call will wait for the process to finish.
+The pclose call normally returns the exit code of the process whose file stream it is closing. If the invoking
+process has already executed a wait statement before calling pclose, the exit status will be lost because
+the invoked process has finished and pclose will return –1, with errno set to ECHILD.
+
+
+
+
+
+
+
