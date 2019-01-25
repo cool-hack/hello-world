@@ -1,0 +1,162 @@
+Page - 3
+
+Named Pipe -
+
+So far, you have only been able to pass data between related programs, that is, programs that have been
+started from a common ancestor process. Often this isn’t very convenient, because you would like unrelated
+processes to be able to exchange data.
+
+You do this with FIFOs, often referred to as named pipes. A named pipe is a special type of file (remember
+that everything in Linux is a file!) that exists as a name in the file system but behaves like the unnamed
+pipes that you’ve met already
+
+You can create named pipes from the command line and from within a program. Historically, the command-line
+program for creating them was mknod:
+
+$ mknod filename p
+
+However, the mknod command is not in the X/Open command list, so it may not be available on all
+UNIX-like systems. The preferred command-line method is to use
+
+$ mkfifo filename
+
+Some older versions of UNIX only had the mknod command. X/Open Issue 4 Version 2 has the
+mknod function call, but not the command-line program. Linux, friendly as ever, supplies both
+mknod and mkfifo.
+
+From inside a program, you can use two different calls:
+#include <sys/types.h>
+#include <sys/stat.h>
+int mkfifo(const char *filename, mode_t mode);
+int mknod(const char *filename, mode_t mode | S_IFIFO, (dev_t) 0);
+
+Like the mknod command, you can use the mknod function for making many special types of files. Using
+a dev_t value of 0 and ORing the file access mode with S_IFIFO is the only portable use of this function
+that creates a named pipe. We’ll use the simpler mkfifo function in the examples.
+
+Sample Program- namedPipe_basic.c
+
+Before you do more programming using the
+FIFO file you created, let’s investigate the behavior of the FIFO file using normal file commands.
+
+1. First, try reading the (empty) FIFO:
+$ cat < /tmp/my_fifo
+
+2. Now try writing to the FIFO. You will have to use a different terminal because the first command
+will now be hanging, waiting for some data to appear in the FIFO.
+$ echo “Hello World” > /tmp/my_fifo
+You will see the output appear from the cat command. If you don’t send any data down the
+FIFO, the cat command will hang until you interrupt it, conventionally with Ctrl+C.
+
+3. You can do both at once by putting the first command in the background:
+$ cat < /tmp/my_fifo &
+[1] 1316
+$ echo “Hello World” > /tmp/my_fifo
+Hello World
+[1]+ Done cat </tmp/my_fifo
+
+
+
+The main restriction on opening FIFOs is that a program may not open a FIFO for reading and writing
+with the mode O_RDWR. If a program violates this restriction, the result is undefined. This is quite a sensible
+restriction because, normally, you use a FIFO only for passing data in a single direction, so there is
+no need for an O_RDWR mode. A process would read its own output back from a pipe if it were opened
+read/write.
+If you do want to pass data in both directions between programs, it’s much better to use either a pair of
+FIFOs or pipes, one for each direction, or (unusually) explicitly change the direction of the data flow by
+closing and reopening the FIFO. We return to bidirectional data exchange using FIFOs later in the chapter.
+The other difference between opening a FIFO and a regular file is the use of the open_flag (the second
+parameter to open) with the option O_NONBLOCK. Using this open mode not only changes how the open call
+is processed, but also changes how read and write requests are processed on the returned file descriptor.
+There are four legal combinations of O_RDONLY, O_WRONLY, and the O_NONBLOCK flag. We’ll consider
+each in turn.
+
+open(const char *path, O_RDONLY);
+
+In this case, the open call will block; it will not return until a process opens the same FIFO for writing.
+This is like the first cat example.
+
+open(const char *path, O_RDONLY | O_NONBLOCK);
+
+The open call will now succeed and return immediately, even if the FIFO has not been opened for writing
+by any process.
+
+open(const char *path, O_WRONLY);
+
+In this case, the open call will block until a process opens the same FIFO for reading.
+
+open(const char *path, O_WRONLY | O_NONBLOCK);
+
+
+
+Opening a FIFO FILE :-
+
+Now look at how you can use the behavior of open with the O_NONBLOCK flag to synchronize two
+processes. Rather than use a number of example programs, you’ll write a single test program, fifo2.c,
+which allows you to investigate the behavior of FIFOs by passing in different parameters.
+
+1. Start with the header files, a #define, and the check that the correct number of command-line
+arguments has been supplied:
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#define FIFO_NAME “/tmp/my_fifo”
+int main(int argc, char *argv[])
+{
+  int res;
+  int open_mode = 0;
+  int i;
+  if (argc < 2) 
+  {
+    fprintf(stderr, “Usage: %s <some combination of\
+      O_RDONLY O_WRONLY O_NONBLOCK>\n”, *argv);
+    exit(EXIT_FAILURE);
+  }
+  
+  
+  2. Assuming that the program passed the test, you now set the value of open_mode from those
+arguments:
+
+for(i = 1; i <argc; i++) {
+if (strncmp(*++argv, “O_RDONLY”, 8) == 0)
+open_mode |= O_RDONLY;
+if (strncmp(*argv, “O_WRONLY”, 8) == 0)
+open_mode |= O_WRONLY;
+if (strncmp(*argv, “O_NONBLOCK”, 10) == 0)
+open_mode |= O_NONBLOCK;
+}
+
+3. Next check whether the FIFO exists, and create it if necessary. Then the FIFO is opened and output
+given to that effect while the program catches forty winks. Last of all, the FIFO is closed.
+
+if (access(FIFO_NAME, F_OK) == -1) {
+res = mkfifo(FIFO_NAME, 0777);
+if (res != 0) {
+fprintf(stderr, “Could not create fifo %s\n”, FIFO_NAME);
+exit(EXIT_FAILURE);
+}
+}
+printf(“Process %d opening FIFO\n”, getpid());
+res = open(FIFO_NAME, open_mode);
+printf(“Process %d result %d\n”, getpid(), res);
+sleep(5);
+if (res != -1) (void)close(res);
+printf(“Process %d finished\n”, getpid());
+exit(EXIT_SUCCESS);
+}
+
+
+
+This is probably the most common use of named pipes. It allows the reader process to start and wait in
+the open call and then allows both programs to continue when the second program opens the FIFO.
+Notice that both the reader and writer processes have synchronized at the open call.
+When a Linux process is blocked, it doesn’t consume CPU resources, so this method of process synchronization
+is very CPU-efficient
+
+
+Sample read - 
