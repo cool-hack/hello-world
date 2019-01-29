@@ -1,1 +1,53 @@
+Semaphore-
+
+This is System V IPC Semaphore
+
+  To prevent problems caused by more than one program simultaneously accessing a shared resource, you
+need a way of generating and using a token that grants access to only one thread of execution in a critical
+section at a time
+
+The semaphore function definitions are
+#include <sys/sem.h>
+
+int semctl(int sem_id, int sem_num, int command, ...);
+int semget(key_t key, int num_sems, int sem_flags);
+int semop(int sem_id, struct sembuf *sem_ops, size_t num_sem_ops);
+
+The header file sys/sem.h usually relies on two other header files, sys/types.h and sys/ipc.h.
+Normally they are automatically included by sys/sem.h and you do not need to explicitly add a
+#include for them.
+
+semget()
+
+The semget function creates a new semaphore or obtains the semaphore key of an existing semaphore:
+
+int semget(key_t key, int num_sems, int sem_flags);
+
+The first parameter, key, is an integral value used to allow unrelated processes to access the same semaphore.
+All semaphores are accessed indirectly by the program supplying a key, for which the system then
+generates a semaphore identifier. The semaphore key is used only with semget. All other semaphore
+functions use the semaphore identifier returned from semget.
+
+ You should provide a unique,non-zero integer value for key when you want to create a new semaphore.
+ 
+ The num_sems parameter is the number of semaphores required. This is almost always 1
+ 
+ The sem_flags parameter is a set of flags, very much like the flags to the open function. The lower nine
+bits are the permissions for the semaphore, which behave like file permissions. In addition, these can be bitwise
+ORed with the value IPC_CREAT to create a new semaphore. It’s not an error to have the IPC_CREAT
+flag set and give the key of an existing semaphore. The IPC_CREAT flag is silently ignored if it is not
+required. You can use IPC_CREAT and IPC_EXCL together to ensure that you obtain a new, unique semaphore.
+It will return an error if the semaphore already exists.
+
+
+
+
+
+
+
+POSIX SEMAPHORE -
+
+
+
+
 
